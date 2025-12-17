@@ -91,10 +91,57 @@ When you execute a command:
 await sandbox.exec("python script.py");
 ```
 
-1. **Client SDK** validates parameters and sends HTTP request to Durable Object
+1. **Client SDK** validates parameters and sends request to Durable Object
 2. **Durable Object** authenticates and routes to container runtime
 3. **Container Runtime** validates inputs, executes command, captures output
 4. **Response flows back** through all layers with proper error transformation
+
+## Transport modes
+
+The Durable Object communicates with the container runtime using one of two transport modes:
+
+### HTTP transport (default)
+
+Each SDK operation (file read, command execution, etc.) sends a separate HTTP request from the Durable Object to the container runtime. This is the default mode.
+
+**Advantages**:
+- Simple and stateless
+- Works for all workloads
+- No connection management needed
+
+**Limitations**:
+- Each operation counts as a sub-request
+- Can hit sub-request limits with many operations
+
+### WebSocket transport
+
+All SDK operations are multiplexed over a single persistent WebSocket connection between the Durable Object and container runtime. Enable with `useWebSocket: true` in sandbox options.
+
+**Advantages**:
+- Single connection for all operations (reduces sub-request count)
+- Lower latency for sequential operations
+- Ideal for agent loops and batch processing
+
+**How it works**:
+1. First SDK operation establishes WebSocket connection
+2. All subsequent operations use the same connection
+3. Connection persists as long as sandbox is active
+4. SDK handles multiplexing automatically
+
+```typescript
+// Enable WebSocket transport
+const sandbox = getSandbox(env.Sandbox, 'agent-123', {
+  useWebSocket: true
+});
+
+// All operations use WebSocket (single connection)
+await sandbox.writeFile('/data.json', content);  // Operation 1
+await sandbox.exec('python process.py');         // Operation 2
+await sandbox.readFile('/output.txt');           // Operation 3
+// Only 1 WebSocket connection, not 3 HTTP requests
+```
+
+Refer to [Sandbox options](/sandbox/configuration/sandbox-options/) for configuration details.
 
 ## Related resources
 

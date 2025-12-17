@@ -108,6 +108,40 @@ const sandbox2 = getSandbox(env.Sandbox, 'user-env', {
 
 Precedence: `options` > `env vars` > SDK defaults
 
+### useWebSocket
+
+**Type**: `boolean`
+**Default**: `false`
+
+Use WebSocket transport for all sandbox operations instead of individual HTTP requests. When enabled, all SDK calls (file operations, command execution, process management) are multiplexed over a single persistent WebSocket connection.
+
+**Benefits**:
+- **Reduces sub-request count** - Critical when running inside Workers or Durable Objects where sub-request limits apply
+- **Better performance** - Single connection reduces latency for multiple operations
+- **Automatic multiplexing** - SDK handles all request routing transparently
+
+<TypeScriptExample>
+```ts
+// Enable WebSocket transport to avoid sub-request limits
+const sandbox = getSandbox(env.Sandbox, 'agent-123', {
+  useWebSocket: true
+});
+
+// All operations now use WebSocket transport
+await sandbox.writeFile('/app/data.json', jsonData);
+await sandbox.exec('python process.py');
+const result = await sandbox.readFile('/app/output.txt');
+```
+</TypeScriptExample>
+
+:::note[When to use WebSocket transport]
+Use `useWebSocket: true` when your Worker or Durable Object makes many sandbox operations in sequence (agent loops, batch file processing, build pipelines). The WebSocket connection persists across operations, eliminating per-request overhead.
+:::
+
+:::caution[Automatic connection management]
+The SDK automatically manages the WebSocket connection lifecycle. The connection is established on first use and maintained as long as the sandbox is active. No manual connection handling is required.
+:::
+
 ### Logging
 
 **Type**: Environment variables
@@ -197,6 +231,19 @@ Use `keepAlive: true` for:
 - **Interactive sessions** - User-driven workflows where the container should remain available
 
 With `keepAlive`, containers never sleep automatically - use for scenarios where you control the lifecycle explicitly.
+
+## When to use useWebSocket
+
+Use `useWebSocket: true` when:
+
+- **Agent loops** - AI agents that make many file reads/writes and command executions in sequence
+- **Sub-request limits** - Your Worker or Durable Object is hitting sub-request limits with the default HTTP transport
+- **Batch operations** - Processing many files or running multiple commands in a single request
+- **Build pipelines** - CI/CD workflows with many sequential sandbox operations
+
+**Performance impact**: WebSocket transport reduces latency for multiple operations by maintaining a persistent connection. The tradeoff is a single long-lived connection instead of many short-lived HTTP requests.
+
+**Best practice**: Start with default HTTP transport. Enable WebSocket transport if you encounter sub-request limits or need better performance for operation-heavy workflows.
 
 ## Related resources
 
